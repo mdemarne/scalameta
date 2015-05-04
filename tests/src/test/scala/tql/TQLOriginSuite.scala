@@ -18,14 +18,30 @@ class TQLOriginSuite extends FunSuite {
     """.parse[Source]
   }
 
-  def findVar1 = {
+
+  val collectAllOrigin1 = {
+    collect {
+      case t: Tree => t
+    }.topDown
+  }
+  val collectAllOrigin2 = {
+    collect {
+      case b: Term.Name => b
+    }.topDown feed { assign =>
+      collect {
+        case t: Tree => t
+      }.topDown
+    }
+  }
+
+  val findVar1 = {
     collect {
       case x: Defn.Var => x.origin.start
     }.topDown 
   }
-    def findVar2 = {
-    collect[Set] {
-      case Term.Assign(b: Term.Name, _) => b
+  val findVar2 = {
+    collect {
+      case b: Term.Name => b
     }.topDown feed { assign =>
       (collect {
         case x: Defn.Var => x.origin.start
@@ -33,16 +49,31 @@ class TQLOriginSuite extends FunSuite {
     }
   }
 
-  def findCase1 = {
+    val findVal1 = {
+    collect {
+      case x: Defn.Val => x.origin.start
+    }.topDown 
+  }
+  val findVal2 = {
+    collect {
+      case b: Term.Name => b
+    }.topDown feed { assign =>
+      (collect {
+        case x: Defn.Val => x.origin.start
+      }).topDown
+    }
+  }
+
+  val findCase1 = {
     collect {
       case x @ Defn.Class(mods, n: Type.Name, ref, ctor @ Ctor.Primary(_, _, args), bdy) if args.flatten.length == 0 && mods.contains(Mod.Case()) =>
         x.origin.start
     }.topDown
   }
 
-  def findCase2 = {
-    collect[Set] {
-      case Term.Assign(b: Term.Name, _) => b
+  val findCase2 = {
+    collect {
+      case b: Term.Name => b
     }.topDown feed { assign =>
       collect {
         case x @ Defn.Class(mods, n: Type.Name, ref, ctor @ Ctor.Primary(_, _, args), bdy) if args.flatten.length == 0 && mods.contains(Mod.Case()) =>
@@ -51,8 +82,14 @@ class TQLOriginSuite extends FunSuite {
     }
   }
 
-  assert(findVar1(tree).result.head == 28)
-  assert(findVar2(tree).result.head == 28)
-  assert(findCase1(tree).result.head == 48)
-  assert(findCase2(tree).result.head == 48)
+  assert(findVal1(tree).result.head == 76) // OK
+  assert(findVal2(tree).result.head == 76) // OK
+  assert(findVar1(tree).result.head == 28) // OK
+  assert(findVar2(tree).result.head == 28) // NOT OK
+  assert(findCase1(tree).result.head == 48) // OK
+  assert(findCase2(tree).result.head == 48) // NOT OK
+
+  val result1 = collectAllOrigin1(tree).result.map(_.origin.start)
+  val result2 = collectAllOrigin2(tree).result.map(_.origin.start)
+  assert(result1 == result2) // NOT OK
 }
